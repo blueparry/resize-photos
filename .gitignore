@@ -1,0 +1,22 @@
+# Virtual environment
+.venv/
+
+# Backed up originals
+originals/
+
+# Images (don't track photos in the repo)
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.tiff
+*.tif
+*.bmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
