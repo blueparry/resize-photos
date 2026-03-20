@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 """
-Resize and optimize photos for web use.
+Core resize and optimize logic for photos.
 
-Usage:
-    python resize.py [--max-size 1024] [--quality 85] [--no-backup]
-
-- Resizes images so the longest side is at most --max-size pixels (default 1024)
-- Uses Lanczos resampling for best quality downscaling
-- Saves JPEGs at --quality (default 85, visually near-lossless)
-- Backs up originals to an 'originals/' subfolder (unless --no-backup)
-- Skips images already smaller than --max-size
-- Preserves filenames
+Can be used as CLI:
+    python resize.py [--directory DIR] [--width 1024] [--height 768]
+                     [--quality 85] [--no-backup]
 """
 
 import argparse
@@ -26,71 +20,59 @@ except ImportError:
     sys.exit(1)
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif", ".bmp"}
-SCRIPT_DIR = Path(__file__).resolve().parent
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Resize and optimize photos for web.")
-    parser.add_argument(
-        "--max-size",
-        type=int,
-        default=1024,
-        help="Maximum dimension (longest side) in pixels (default: 1024)",
-    )
-    parser.add_argument(
-        "--quality",
-        type=int,
-        default=85,
-        help="JPEG/WebP quality 1-100 (default: 85)",
-    )
-    parser.add_argument(
-        "--no-backup",
-        action="store_true",
-        help="Skip backing up originals to 'originals/' folder",
-    )
-    return parser.parse_args()
+DEFAULT_WIDTH = 1024
+DEFAULT_HEIGHT = 768
+DEFAULT_QUALITY = 85
 
 
 def find_images(directory):
+    """Return sorted list of image files in the given directory."""
     return sorted(
         p
-        for p in directory.iterdir()
+        for p in Path(directory).iterdir()
         if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS
     )
 
 
-def resize_image(image_path, max_size, quality, backup_dir):
+def resize_image(image_path, target_width, target_height, quality, backup_dir):
+    """Resize a single image to fit within target_width x target_height.
+
+    Returns a dict with status info, or raises on error.
+    """
     img = Image.open(image_path)
     original_width, original_height = img.size
-    longest_side = max(original_width, original_height)
 
-    if longest_side <= max_size:
-        print(f"  SKIP (already {original_width}x{original_height}): {image_path.name}")
-        return False
+    if original_width <= target_width and original_height <= target_height:
+        img.close()
+        return {
+            "status": "skipped",
+            "name": image_path.name,
+            "original_size": (original_width, original_height),
+            "new_size": (original_width, original_height),
+        }
 
     # Back up original
     if backup_dir is not None:
-        backup_path = backup_dir / image_path.name
+        backup_path = Path(backup_dir) / image_path.name
         if not backup_path.exists():
             shutil.copy2(image_path, backup_path)
 
-    # Calculate new dimensions preserving aspect ratio
-    ratio = max_size / longest_side
+    # Scale to fit within target dimensions, preserving aspect ratio
+    ratio = min(target_width / original_width, target_height / original_height)
     new_width = round(original_width * ratio)
     new_height = round(original_height * ratio)
 
     resized = img.resize((new_width, new_height), Image.LANCZOS)
 
-    # Preserve EXIF data if available
     exif_data = img.info.get("exif")
 
-    # Save with optimization
     save_kwargs = {"optimize": True}
     suffix = image_path.suffix.lower()
 
     if suffix in {".jpg", ".jpeg"}:
         save_kwargs["quality"] = quality
-        save_kwargs["subsampling"] = 0  # 4:4:4 chroma for better quality
+        save_kwargs["subsampling"] = 0
         if exif_data:
             save_kwargs["exif"] = exif_data
         resized.save(image_path, "JPEG", **save_kwargs)
@@ -109,49 +91,125 @@ def resize_image(image_path, max_size, quality, backup_dir):
     img.close()
     resized.close()
 
-    print(
-        f"  DONE {original_width}x{original_height} -> {new_width}x{new_height}: "
-        f"{image_path.name}"
-    )
-    return True
+    return {
+        "status": "resized",
+        "name": image_path.name,
+        "original_size": (original_width, original_height),
+        "new_size": (new_width, new_height),
+    }
 
 
-def main():
-    args = parse_args()
-    images = find_images(SCRIPT_DIR)
+def resize_all(directory, target_width, target_height, quality, no_backup=False,
+               on_progress=None):
+    """Resize all images in directory. Returns summary dict.
 
-    if not images:
-        print("No images found in the script directory.")
-        print(f"Place images ({', '.join(SUPPORTED_EXTENSIONS)}) next to this script.")
-        sys.exit(0)
-
-    print(f"Found {len(images)} image(s). Max size: {args.max_size}px, quality: {args.quality}")
-    print()
+    on_progress(result_dict) is called after each image if provided.
+    """
+    directory = Path(directory)
+    images = find_images(directory)
 
     backup_dir = None
-    if not args.no_backup:
-        backup_dir = SCRIPT_DIR / "originals"
+    if not no_backup:
+        backup_dir = directory / "originals"
         backup_dir.mkdir(exist_ok=True)
-        print(f"Originals backed up to: {backup_dir}")
-        print()
 
     resized_count = 0
     skipped_count = 0
     error_count = 0
+    results = []
 
     for image_path in images:
         try:
-            was_resized = resize_image(image_path, args.max_size, args.quality, backup_dir)
-            if was_resized:
+            result = resize_image(
+                image_path, target_width, target_height, quality, backup_dir
+            )
+            if result["status"] == "resized":
                 resized_count += 1
             else:
                 skipped_count += 1
+            results.append(result)
         except Exception as e:
-            print(f"  ERROR: {image_path.name}: {e}")
             error_count += 1
+            result = {"status": "error", "name": image_path.name, "error": str(e)}
+            results.append(result)
+
+        if on_progress:
+            on_progress(result)
+
+    return {
+        "total": len(images),
+        "resized": resized_count,
+        "skipped": skipped_count,
+        "errors": error_count,
+        "results": results,
+    }
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Resize and optimize photos.")
+    parser.add_argument(
+        "--directory",
+        type=str,
+        default=str(Path(__file__).resolve().parent),
+        help="Directory containing images (default: script directory)",
+    )
+    parser.add_argument(
+        "--width", type=int, default=DEFAULT_WIDTH,
+        help=f"Target max width in pixels (default: {DEFAULT_WIDTH})",
+    )
+    parser.add_argument(
+        "--height", type=int, default=DEFAULT_HEIGHT,
+        help=f"Target max height in pixels (default: {DEFAULT_HEIGHT})",
+    )
+    parser.add_argument(
+        "--quality", type=int, default=DEFAULT_QUALITY,
+        help=f"JPEG/WebP quality 1-100 (default: {DEFAULT_QUALITY})",
+    )
+    parser.add_argument(
+        "--no-backup", action="store_true",
+        help="Skip backing up originals to 'originals/' folder",
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    directory = Path(args.directory)
+
+    if not directory.is_dir():
+        print(f"Error: '{directory}' is not a valid directory.")
+        sys.exit(1)
+
+    images = find_images(directory)
+    if not images:
+        print("No images found in the directory.")
+        print(f"Place images ({', '.join(SUPPORTED_EXTENSIONS)}) in: {directory}")
+        sys.exit(0)
+
+    print(f"Found {len(images)} image(s). Target: {args.width}x{args.height}, "
+          f"quality: {args.quality}")
+    print(f"Directory: {directory}")
+    print()
+
+    def on_progress(result):
+        if result["status"] == "resized":
+            orig = result["original_size"]
+            new = result["new_size"]
+            print(f"  DONE {orig[0]}x{orig[1]} -> {new[0]}x{new[1]}: {result['name']}")
+        elif result["status"] == "skipped":
+            orig = result["original_size"]
+            print(f"  SKIP (already {orig[0]}x{orig[1]}): {result['name']}")
+        else:
+            print(f"  ERROR: {result['name']}: {result.get('error', 'unknown')}")
+
+    summary = resize_all(
+        directory, args.width, args.height, args.quality,
+        no_backup=args.no_backup, on_progress=on_progress,
+    )
 
     print()
-    print(f"Done! Resized: {resized_count}, Skipped: {skipped_count}, Errors: {error_count}")
+    print(f"Done! Resized: {summary['resized']}, Skipped: {summary['skipped']}, "
+          f"Errors: {summary['errors']}")
 
 
 if __name__ == "__main__":

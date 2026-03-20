@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Cross-platform wrapper for resize.py (macOS/Linux)
-# Usage: ./resize.sh [--max-size 1024] [--quality 85] [--no-backup]
+# Cross-platform launcher for Photo Resizer (macOS/Linux)
+# Usage:
+#   ./resize.sh          - opens GUI
+#   ./resize.sh --cli    - runs CLI mode (pass args after --cli)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/.venv"
@@ -11,4 +13,9 @@ if [ ! -d "$VENV_DIR" ]; then
     "$VENV_DIR/bin/pip" install --quiet Pillow
 fi
 
-"$VENV_DIR/bin/python" "$SCRIPT_DIR/resize.py" "$@"
+if [ "$1" = "--cli" ]; then
+    shift
+    "$VENV_DIR/bin/python" "$SCRIPT_DIR/resize.py" "$@"
+else
+    "$VENV_DIR/bin/python" "$SCRIPT_DIR/resize_gui.py" "$@"
+fi
