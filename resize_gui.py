@@ -21,7 +21,7 @@ try:
         resize_all,
     )
     from icon import create_icon
-    from updater import check_for_update, apply_update, initialize_version
+    from updater import check_for_update, apply_update
     from version import __version__
 except ImportError:
     print("Erro: resize.py, icon.py e updater.py devem estar na mesma pasta que resize_gui.py")
@@ -595,9 +595,6 @@ def create_app():
         style="Update.TButton", command=do_check_update,
     )
     update_btn.grid(row=0, column=0, sticky="w")
-
-    # Initialize version tracking on first run
-    threading.Thread(target=initialize_version, daemon=True).start()
 
     # Version label (bottom right)
     ttk.Label(

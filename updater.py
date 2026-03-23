@@ -82,8 +82,13 @@ def check_for_update():
     message = data["commit"]["message"].split("\n")[0]
     current_sha = _read_local_version()
 
+    # First run: no .version file yet — save current SHA as baseline
+    if current_sha is None:
+        _write_local_version(latest_sha)
+        current_sha = latest_sha
+
     return {
-        "available": current_sha is None or current_sha != latest_sha,
+        "available": current_sha != latest_sha,
         "current_sha": current_sha,
         "latest_sha": latest_sha,
         "message": message,
