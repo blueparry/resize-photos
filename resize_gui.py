@@ -158,7 +158,7 @@ def create_app():
     is_running = {"value": False}
 
     # Main container
-    main_frame = ttk.Frame(root, padding=(30, 20))
+    main_frame = ttk.Frame(root, padding=(30, 20, 30, 3))
     main_frame.grid(row=0, column=0, sticky="nsew")
 
     # Title
@@ -503,7 +503,7 @@ def create_app():
     # Update checker
     # ============================================================
     update_frame = ttk.Frame(main_frame)
-    update_frame.grid(row=7, column=0, columnspan=2, sticky="sew", pady=(20, 2))
+    update_frame.grid(row=7, column=0, columnspan=2, sticky="sew", pady=(20, 0))
 
     update_status_var = tk.StringVar(value="")
     ttk.Label(
