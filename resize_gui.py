@@ -113,11 +113,11 @@ def setup_styles():
               foreground=[("active", ACCENT_BLUE_HOVER)],
               background=[("active", BG)])
 
-    # Update button (small link style)
-    style.configure("Update.TButton", font=("Helvetica", 9), foreground=TEXT_LIGHT,
+    # Update button (small blue link style)
+    style.configure("Update.TButton", font=("Helvetica", 9), foreground=ACCENT_BLUE,
                      background=BG, borderwidth=0, padding=(0, 2))
     style.map("Update.TButton",
-              foreground=[("active", ACCENT_BLUE), ("disabled", BORDER)])
+              foreground=[("active", ACCENT_BLUE_HOVER), ("disabled", BORDER)])
 
     # Checkbox
     style.configure("Backup.TCheckbutton", font=FONT_MEDIUM,
@@ -503,7 +503,7 @@ def create_app():
     # Update checker
     # ============================================================
     update_frame = ttk.Frame(main_frame)
-    update_frame.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+    update_frame.grid(row=7, column=0, columnspan=2, sticky="sew", pady=(20, 2))
 
     update_status_var = tk.StringVar(value="")
     ttk.Label(
