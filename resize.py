@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageOps
 except ImportError:
     print("Pillow is required. Install it with:")
     print("  pip install Pillow")
@@ -41,6 +41,7 @@ def resize_image(image_path, target_width, target_height, quality, backup_dir):
     Returns a dict with status info, or raises on error.
     """
     img = Image.open(image_path)
+    img = ImageOps.exif_transpose(img)
     original_width, original_height = img.size
 
     if original_width <= target_width and original_height <= target_height:
