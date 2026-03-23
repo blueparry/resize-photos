@@ -21,8 +21,9 @@ try:
         resize_all,
     )
     from icon import create_icon
+    from updater import check_for_update, apply_update, initialize_version
 except ImportError:
-    print("Erro: resize.py e icon.py devem estar na mesma pasta que resize_gui.py")
+    print("Erro: resize.py, icon.py e updater.py devem estar na mesma pasta que resize_gui.py")
     sys.exit(1)
 
 
@@ -110,6 +111,13 @@ def setup_styles():
     style.map("Link.TButton",
               foreground=[("active", ACCENT_BLUE_HOVER)],
               background=[("active", BG)])
+
+    # Update button (orange)
+    style.configure("Update.TButton", font=FONT_SMALL, foreground="#FFFFFF",
+                     background="#F59E0B", borderwidth=0, padding=(12, 6))
+    style.map("Update.TButton",
+              background=[("active", "#D97706"), ("disabled", BORDER)],
+              foreground=[("disabled", TEXT_LIGHT)])
 
     # Checkbox
     style.configure("Backup.TCheckbutton", font=FONT_MEDIUM,
@@ -490,6 +498,105 @@ def create_app():
     log_scrollbar.grid(row=0, column=1, sticky="ns")
     log_outer.columnconfigure(0, weight=1)
     log_outer.rowconfigure(0, weight=1)
+
+    # ============================================================
+    # Update checker
+    # ============================================================
+    update_frame = ttk.Frame(main_frame)
+    update_frame.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+
+    update_status_var = tk.StringVar(value="")
+    ttk.Label(
+        update_frame, textvariable=update_status_var, font=FONT_SMALL,
+        foreground=TEXT_MID, background=BG,
+    ).grid(row=0, column=1, sticky="w", padx=(10, 0))
+
+    def do_check_update():
+        update_btn.configure(state="disabled")
+        update_status_var.set("Verificando...")
+
+        def _worker():
+            try:
+                result = check_for_update()
+                root.after(0, lambda: _on_check_result(result))
+            except Exception as e:
+                root.after(0, lambda: _on_check_error(str(e)))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_check_result(result):
+        update_btn.configure(state="normal")
+        if result["available"]:
+            update_status_var.set(f"Nova versao disponivel: {result['message']}")
+            answer = messagebox.askyesno(
+                "Atualizacao Disponivel",
+                f"Uma nova versao foi encontrada!\n\n"
+                f"{result['message']}\n\n"
+                f"Deseja atualizar agora?",
+            )
+            if answer:
+                do_apply_update(result["latest_sha"])
+        else:
+            update_status_var.set("Ja esta na versao mais recente!")
+
+    def _on_check_error(err):
+        update_btn.configure(state="normal")
+        update_status_var.set("Erro ao verificar")
+        messagebox.showerror(
+            "Erro de Atualizacao",
+            f"Nao foi possivel verificar atualizacoes:\n\n{err}\n\n"
+            "Verifique sua conexao com a internet.",
+        )
+
+    def do_apply_update(sha):
+        update_btn.configure(state="disabled")
+        resize_btn.configure(state="disabled")
+        update_status_var.set("Baixando atualizacao...")
+
+        def on_progress(filename, index, total):
+            if filename:
+                root.after(0, lambda: update_status_var.set(
+                    f"Baixando {filename}... ({index + 1}/{total})"
+                ))
+
+        def _worker():
+            try:
+                updated = apply_update(sha, on_progress=on_progress)
+                root.after(0, lambda: _on_update_done(updated))
+            except Exception as e:
+                root.after(0, lambda: _on_update_error(str(e)))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_update_done(updated):
+        update_btn.configure(state="normal")
+        resize_btn.configure(state="normal")
+        update_status_var.set(f"Atualizado! ({len(updated)} arquivo(s))")
+        messagebox.showinfo(
+            "Atualizacao Concluida",
+            f"Atualizacao instalada com sucesso!\n\n"
+            f"Arquivos atualizados:\n"
+            + "\n".join(f"  - {f}" for f in updated)
+            + "\n\nPor favor, feche e abra o programa novamente.",
+        )
+
+    def _on_update_error(err):
+        update_btn.configure(state="normal")
+        resize_btn.configure(state="normal")
+        update_status_var.set("Erro ao atualizar")
+        messagebox.showerror(
+            "Erro de Atualizacao",
+            f"Nao foi possivel atualizar:\n\n{err}",
+        )
+
+    update_btn = ttk.Button(
+        update_frame, text="Verificar Atualizacao",
+        style="Update.TButton", command=do_check_update,
+    )
+    update_btn.grid(row=0, column=0, sticky="w")
+
+    # Initialize version tracking on first run
+    threading.Thread(target=initialize_version, daemon=True).start()
 
     # Center window on screen
     root.update_idletasks()
