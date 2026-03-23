@@ -113,12 +113,11 @@ def setup_styles():
               foreground=[("active", ACCENT_BLUE_HOVER)],
               background=[("active", BG)])
 
-    # Update button (orange)
-    style.configure("Update.TButton", font=FONT_SMALL, foreground="#FFFFFF",
-                     background="#F59E0B", borderwidth=0, padding=(12, 6))
+    # Update button (small link style)
+    style.configure("Update.TButton", font=("Helvetica", 9), foreground=TEXT_LIGHT,
+                     background=BG, borderwidth=0, padding=(0, 2))
     style.map("Update.TButton",
-              background=[("active", "#D97706"), ("disabled", BORDER)],
-              foreground=[("disabled", TEXT_LIGHT)])
+              foreground=[("active", ACCENT_BLUE), ("disabled", BORDER)])
 
     # Checkbox
     style.configure("Backup.TCheckbutton", font=FONT_MEDIUM,
@@ -508,9 +507,9 @@ def create_app():
 
     update_status_var = tk.StringVar(value="")
     ttk.Label(
-        update_frame, textvariable=update_status_var, font=FONT_SMALL,
+        update_frame, textvariable=update_status_var, font=("Helvetica", 9),
         foreground=TEXT_MID, background=BG,
-    ).grid(row=0, column=1, sticky="w", padx=(10, 0))
+    ).grid(row=1, column=0, columnspan=3, sticky="w")
 
     def do_check_update():
         update_btn.configure(state="disabled")
@@ -596,11 +595,13 @@ def create_app():
     )
     update_btn.grid(row=0, column=0, sticky="w")
 
-    # Version label (bottom right)
+    # Version label (bottom right, same row)
     ttk.Label(
-        main_frame, text=f"Blue Parry - v{__version__}", font=FONT_SMALL,
+        update_frame, text=f"v{__version__}", font=("Helvetica", 9),
         foreground=TEXT_LIGHT, background=BG,
-    ).grid(row=8, column=0, columnspan=2, sticky="e", pady=(8, 0))
+    ).grid(row=0, column=2, sticky="e")
+
+    update_frame.columnconfigure(1, weight=1)
 
     # Center window on screen
     root.update_idletasks()
