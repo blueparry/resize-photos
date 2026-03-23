@@ -22,6 +22,7 @@ try:
     )
     from icon import create_icon
     from updater import check_for_update, apply_update, initialize_version
+    from version import __version__
 except ImportError:
     print("Erro: resize.py, icon.py e updater.py devem estar na mesma pasta que resize_gui.py")
     sys.exit(1)
@@ -597,6 +598,12 @@ def create_app():
 
     # Initialize version tracking on first run
     threading.Thread(target=initialize_version, daemon=True).start()
+
+    # Version label (bottom right)
+    ttk.Label(
+        main_frame, text=f"Blue Parry - v{__version__}", font=FONT_SMALL,
+        foreground=TEXT_LIGHT, background=BG,
+    ).grid(row=8, column=0, columnspan=2, sticky="e", pady=(8, 0))
 
     # Center window on screen
     root.update_idletasks()

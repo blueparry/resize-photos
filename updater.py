@@ -22,6 +22,7 @@ VERSION_FILE = SCRIPT_DIR / ".version"
 
 # Files to update (all distributable files in the repo root)
 UPDATABLE_FILES = [
+    "version.py",
     "resize.py",
     "resize_gui.py",
     "icon.py",
