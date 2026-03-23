@@ -7,10 +7,38 @@ Uses the GitHub API (no dependencies beyond stdlib).
 import json
 import os
 import shutil
+import ssl
 import tempfile
 import urllib.request
 import urllib.error
 from pathlib import Path
+
+
+def _ssl_context():
+    """Create an SSL context, falling back to unverified on Windows cert issues."""
+    try:
+        ctx = ssl.create_default_context()
+        # Test if it can actually verify (Windows often fails here)
+        urllib.request.urlopen("https://api.github.com", context=ctx, timeout=5)
+        return ctx
+    except (ssl.SSLError, urllib.error.URLError):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    except Exception:
+        return None
+
+
+_SSL_CTX = None
+
+
+def _get_ssl_context():
+    """Lazy-initialize and cache the SSL context."""
+    global _SSL_CTX
+    if _SSL_CTX is None:
+        _SSL_CTX = _ssl_context()
+    return _SSL_CTX
 
 REPO_OWNER = "blueparry"
 REPO_NAME = "resize-photos"
@@ -50,7 +78,7 @@ def _api_get(path):
     req = urllib.request.Request(url)
     req.add_header("Accept", "application/vnd.github.v3+json")
     req.add_header("User-Agent", f"{REPO_NAME}-updater")
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=15, context=_get_ssl_context()) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -62,7 +90,7 @@ def _download_raw(file_path, sha):
     )
     req = urllib.request.Request(url)
     req.add_header("User-Agent", f"{REPO_NAME}-updater")
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=30, context=_get_ssl_context()) as resp:
         return resp.read()
 
 
